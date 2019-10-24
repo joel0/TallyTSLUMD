@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView mTallyStatusTextView;
     private Spinner mCamChoiceSpinner;
     private ConstraintLayout mMainLayout;
-    private int mThisTallyId = 0x84;
+    private int mThisTallyId = 4;
     private NetController mNetController;
     private TallyListenerClass mListener = new TallyListenerClass();
     private ArrayAdapter<TalliesModel.TallyState> mCamSpinnerAdapter;
@@ -81,6 +81,9 @@ public class MainActivity extends AppCompatActivity {
         if (myTally == null) {
             // The tally has not yet been observed.
             myTally = new TalliesModel.TallyState((byte) 0, TalliesModel.TALLY_LIGHT_OFF, "UNKNOWN");
+        } else {
+            // Set the spinner to the selected tally.
+            mCamChoiceSpinner.setSelection(mCamSpinnerAdapter.getPosition(myTally));
         }
         mTallyStatusTextView.setText(myTally.getLabel());
         int colorId = R.color.tallyOff;
@@ -99,15 +102,12 @@ public class MainActivity extends AppCompatActivity {
     private class TallyListenerClass implements NetController.ITallyEvent {
         @Override
         public void tallyChange(byte id, TalliesModel.TallyState state) {
-            int unsignedId = id & 0xFF;
-            if (unsignedId == mThisTallyId) {
-                runOnUiThread(new Runnable() {
+            runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         updateUINow();
                     }
                 });
-            }
         }
 
         @Override
