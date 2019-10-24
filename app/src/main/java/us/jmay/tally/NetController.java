@@ -15,7 +15,8 @@ public class NetController extends ViewModel {
     private ITallyEvent mTallyListener = null;
 
     public void StartAsync() {
-        if (mNetThread != null) throw new IllegalStateException("Network thread is already running.");
+        if (mNetThread != null)
+            throw new IllegalStateException("Network thread is already running.");
         mNetThread = new NetThread();
         mNetThread.start();
     }
@@ -72,9 +73,11 @@ public class NetController extends ViewModel {
                     do {
                         ret = is.read(buffer);
                         if (ret == 18) {
-                            tallyId = buffer[0];
+                            tallyId = (byte) (buffer[0] - 0x80);
 
-                            tallyStatus = Byte.valueOf(Character.toString((char) buffer[1]));
+                            // Note: tallies 3 & 4, brightness, and reserved bits are ignored.
+                            // TODO: check reserved bits and log a warning.
+                            tallyStatus = (byte) (buffer[1] & 0x03);
                             tallyLabel = new String(buffer, 2, 16, StandardCharsets.US_ASCII);
                             TalliesModel.TallyState newState = mTallies.SetTally(tallyId, tallyStatus, tallyLabel);
 
@@ -113,6 +116,7 @@ public class NetController extends ViewModel {
 
     public interface ITallyEvent {
         void tallyChange(byte id, TalliesModel.TallyState state);
+
         void statusChange(String message);
     }
 }
