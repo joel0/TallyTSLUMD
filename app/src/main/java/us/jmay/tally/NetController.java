@@ -1,5 +1,7 @@
 package us.jmay.tally;
 
+import android.util.Log;
+
 import androidx.lifecycle.ViewModel;
 
 import java.io.BufferedInputStream;
@@ -7,21 +9,40 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 
 public class NetController extends ViewModel {
     private TalliesModel mTallies = new TalliesModel();
     private NetThread mNetThread = null;
     private ITallyEvent mTallyListener = null;
+    private static final String TAG = "NetController";
 
     public void StartAsync() {
         if (mNetThread != null)
             throw new IllegalStateException("Network thread is already running.");
+
+        Log.v(TAG, "Creating and starting NetThread.");
         mNetThread = new NetThread();
         mNetThread.start();
     }
 
-    public void Stop() {
+    /**
+     * Starts listening on the network asynchronously, but does nothing if this instance is already
+     * listening.
+     */
+    public void StartIfNotStartedAsync() {
+        if (mNetThread == null) {
+            StartAsync();
+        } else {
+            Log.v(TAG, "Not starting a new NetThread, because one is already running.");
+        }
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+
         mNetThread.interrupt();
         try {
             mNetThread.join();
@@ -41,6 +62,8 @@ public class NetController extends ViewModel {
 
     class NetThread extends Thread {
         private ServerSocket mSocket;
+        private Socket mSocketClient = null;
+        private static final String TAG = "NetController.NetThread";
 
         NetThread() {
             this.setName("Net Thread");
@@ -60,15 +83,15 @@ public class NetController extends ViewModel {
             while (!isInterrupted()) {
                 try {
                     setUIText("Listening");
-                    Socket client = mSocket.accept();
-                    String remoteAddr = client.getInetAddress().toString();
+                    mSocketClient = mSocket.accept();
+                    String remoteAddr = mSocketClient.getInetAddress().toString();
                     setUIText(remoteAddr + " connected");
 
                     int ret;
                     byte tallyId;
                     byte tallyStatus;
                     String tallyLabel;
-                    BufferedInputStream is = new BufferedInputStream(client.getInputStream());
+                    BufferedInputStream is = new BufferedInputStream(mSocketClient.getInputStream());
                     byte[] buffer = new byte[18];
                     do {
                         ret = is.read(buffer);
@@ -83,19 +106,43 @@ public class NetController extends ViewModel {
 
                             updateUIWithCurStatus(tallyId, newState);
                         }
-                    } while (ret != -1 && client.isConnected());
+                    } while (ret != -1 && mSocketClient.isConnected());
+                } catch (SocketException ignored) {
+                    // Thread is probably interrupted via interrupt() function. Time to exit.
+                    Log.i(TAG, "SocketException, which is probably a request to close app.");
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    Log.w(TAG, "Unexpected IOException", e);
                 }
             }
+
+            // Close connections
+            if (mSocketClient != null && mSocketClient.isConnected()) {
+                try {
+                    mSocketClient.close();
+                } catch (IOException ignored) {
+                    // Don't care if the connection failed to close.
+                }
+            }
+            if (mSocket != null && !mSocket.isClosed()) {
+                try {
+                    mSocket.close();
+                } catch (IOException ignored) {
+                    // Don't care if the socket failed to close.
+                }
+            }
+            Log.i(TAG, "NetThread stopped gracefully.");
         }
 
         @Override
         public void interrupt() {
             super.interrupt();
 
+            Log.v(TAG, "Interrupting net thread to stop.");
             try {
                 mSocket.close();
+                if (mSocketClient != null && mSocketClient.isConnected()) {
+                    mSocketClient.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }

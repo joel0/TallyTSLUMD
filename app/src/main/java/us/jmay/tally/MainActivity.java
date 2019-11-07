@@ -1,10 +1,12 @@
 package us.jmay.tally;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.lifecycle.ViewModelProviders;
 
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -50,6 +52,13 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+
+        mNetController.StartIfNotStartedAsync();
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState, @Nullable PersistableBundle persistentState) {
+        super.onCreate(savedInstanceState, persistentState);
     }
 
     @Override
@@ -57,7 +66,6 @@ public class MainActivity extends AppCompatActivity {
         super.onStart();
 
         mNetController.setTallyListener(mListener);
-        mNetController.StartAsync();
         updateUINow();
     }
 
@@ -66,7 +74,13 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
 
         mNetController.setTallyListener(null);
-        mNetController.Stop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // TODO remove? mNetController.Stop();
     }
 
     public void updateUINow() {
